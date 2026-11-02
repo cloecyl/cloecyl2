@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unpaid Payments Tracker</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #fafaf9;
+    --border: #e7e5e4;
+    --ink: #1c1917;
+    --muted: #78716c;
+    --accent: #ea580c;
+    --accent-soft: #fff1e8;
+    --red: #b91c1c;
+    --red-soft: #fef2f2;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 40px 20px 80px;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .total-card {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 36px;
+  }
+
+  .total-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+
+  .total-amount {
+    font-size: 36px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  .total-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 6px 0 0;
+  }
+
+  .section-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .row.overdue {
+    border-color: #fecaca;
+    background: var(--red-soft);
+  }
+
+  .row-info {
+    min-width: 0;
+  }
+
+  .row-top {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .customer {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .amount {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink);
+  }
+
+  .meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .days-late {
+    font-weight: 600;
+  }
+
+  .days-late.critical {
+    color: var(--red);
+  }
+
+  .pay-btn {
+    flex-shrink: 0;
+    border: 1px solid var(--accent);
+    background: #fff;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .pay-btn:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 40px 0;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Unpaid Payments Tracker</h1>
+    <p class="subtitle">As of <span id="todayLabel"></span></p>
+  </header>
+
+  <div class="total-card">
+    <p class="total-label">Total Owed</p>
+    <p class="total-amount" id="totalAmount">SGD 0.00</p>
+    <p class="total-sub" id="totalSub"></p>
+  </div>
+
+  <p class="section-label">Overdue Invoices (sorted by days late)</p>
+  <div class="list" id="invoiceList"></div>
+</div>
+
+<script>
+  const TODAY = new Date(2026, 10, 2); // Nov 2, 2026
+
+  let invoices = [
+    { customer: "Tan Trading",   amount: 1200, due_date: "2026-10-01" },
+    { customer: "Lim Florist",   amount: 450,  due_date: "2026-10-12" },
+    { customer: "Ong Bakery",    amount: 980,  due_date: "2026-09-25" },
+    { customer: "Koh Events",    amount: 2300, due_date: "2026-10-20" },
+    { customer: "Wong Printing", amount: 610,  due_date: "2026-10-05" },
+    { customer: "Ng Catering",   amount: 1750, due_date: "2026-09-30" },
+    { customer: "Lee Motors",    amount: 4100, due_date: "2026-10-08" },
+    { customer: "Teo Logistics", amount: 1500, due_date: "2026-09-28" },
+  ];
+
+  function daysLate(dueDateStr) {
+    const due = new Date(dueDateStr + "T00:00:00");
+    const diffMs = TODAY - due;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
+
+  function formatSGD(n) {
+    return "SGD " + n.toLocaleString("en-SG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function formatDate(dueDateStr) {
+    const d = new Date(dueDateStr + "T00:00:00");
+    return d.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function render() {
+    const listEl = document.getElementById("invoiceList");
+    const totalAmountEl = document.getElementById("totalAmount");
+    const totalSubEl = document.getElementById("totalSub");
+
+    const total = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+    totalAmountEl.textContent = formatSGD(total);
+    totalSubEl.textContent = invoices.length + (invoices.length === 1 ? " invoice outstanding" : " invoices outstanding");
+
+    if (invoices.length === 0) {
+      listEl.innerHTML = '<div class="empty">No unpaid invoices. All caught up.</div>';
+      return;
+    }
+
+    const sorted = [...invoices]
+      .map((inv, idx) => ({ ...inv, _idx: idx, _daysLate: daysLate(inv.due_date) }))
+      .sort((a, b) => b._daysLate - a._daysLate);
+
+    listEl.innerHTML = sorted.map(inv => {
+      const critical = inv._daysLate > 30;
+      return `
+        <div class="row ${critical ? "overdue" : ""}">
+          <div class="row-info">
+            <div class="row-top">
+              <span class="customer">${inv.customer}</span>
+              <span class="amount">${formatSGD(inv.amount)}</span>
+            </div>
+            <div class="meta">
+              Due ${formatDate(inv.due_date)} ·
+              <span class="days-late ${critical ? "critical" : ""}">${inv._daysLate} days late</span>
+            </div>
+          </div>
+          <button class="pay-btn" data-idx="${inv._idx}">Mark as paid</button>
+        </div>
+      `;
+    }).join("");
+
+    listEl.querySelectorAll(".pay-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-idx"));
+        invoices.splice(idx, 1);
+        render();
+      });
+    });
+  }
+
+  document.getElementById("todayLabel").textContent = TODAY.toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" });
+  render();
+</script>
+</body>
+</html>
